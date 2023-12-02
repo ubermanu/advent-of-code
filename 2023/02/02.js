@@ -32,8 +32,6 @@ function parse_game_data(line) {
 		return set
 	})
 
-	// console.log(id, sets)
-
 	return { id, sets }
 }
 
@@ -92,3 +90,34 @@ function possible_id_sum(text, criteria) {
 const criteria1 = { red: 12, green: 13, blue: 14 }
 console.log('Sum of the possible IDs:', possible_id_sum(doc, criteria1))
 console.log('Sum of the possible IDs:', possible_id_sum(file.toString(), criteria1))
+
+
+function minimum_criteria(game) {
+	const criteria = {}
+
+	for (let set of game.sets) {
+		for (let k in set) {
+			if (!criteria[k] || criteria[k] < set[k]) {
+				criteria[k] = set[k]
+			}
+		}
+	}
+
+	return criteria
+}
+
+
+function power_sets_sum(text) {
+	let total = 0
+
+	for (let game of parse_games(text)) {
+		const min = minimum_criteria(game)
+		const power = min?.green * min?.red * min?.blue
+		total += power
+	}
+
+	return total
+}
+
+console.log('Sum of power of sets:', power_sets_sum(doc))
+console.log('Sum of power of sets:', power_sets_sum(file.toString()))

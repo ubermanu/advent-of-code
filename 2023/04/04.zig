@@ -21,6 +21,7 @@ const Card = struct {
 
     pub fn get_matching_numbers(self: *Card) []i32 {
         var list = std.ArrayList(i32).init(std.heap.page_allocator);
+        defer list.deinit();
 
         for (self.numbers) |n| {
             for (self.winning_numbers) |w| {
@@ -45,6 +46,19 @@ const Card = struct {
         var len: i32 = @intCast(matches.len);
         return std.math.pow(i32, 2, len - 1);
     }
+
+    pub fn get_scratchcards(self: *Card, cards: *[206]Card) []Card {
+        const matches = self.get_matching_numbers();
+
+        if (matches.len == 0) {
+            return &.{};
+        }
+
+        var id: usize = @intCast(self.id);
+        const end = @min(id + matches.len, cards.len);
+
+        return cards[id..end];
+    }
 };
 
 fn decode_card(text: []const u8) !Card {
@@ -58,6 +72,29 @@ fn decode_card(text: []const u8) !Card {
     return card;
 }
 
+fn get_scratchcards_count(cards: *[206]Card, card: *Card) i32 {
+    var count: i32 = 1;
+
+    const scratches = card.get_scratchcards(cards);
+    for (scratches, 0..) |_, i| {
+        count += get_scratchcards_count(cards, &scratches[i]);
+    }
+
+    return count;
+}
+
+fn get_all_scratchcards_count(cards: *[206]Card) i32 {
+    var count: i32 = 0;
+
+    for (cards, 0..) |_, i| {
+        const c = get_scratchcards_count(cards, &cards[i]);
+        print("Card {} = {}\n", .{ (i + 1), c });
+        count += c;
+    }
+
+    return count;
+}
+
 const file = @embedFile("input");
 
 pub fn main() !void {
@@ -68,9 +105,23 @@ pub fn main() !void {
         if (line.len > 0) {
             var card = try decode_card(line);
             total += card.get_points();
-            print("{d}\t{any}\n", .{ card.get_points(), card.get_matching_numbers() });
         }
     }
 
     print("Total points: {d}\n", .{total});
+
+    it.reset();
+    total = 0;
+
+    var cards: [206]Card = .{};
+
+    while (it.next()) |line| {
+        if (line.len > 0) {
+            var card = try decode_card(line);
+            var id: usize = @intCast(card.id);
+            cards[id - 1] = card;
+        }
+    }
+
+    print("Total number of scratchcards: {d}\n", .{get_all_scratchcards_count(&cards)});
 }

@@ -26,20 +26,31 @@ function count_deliveries(string $text): int
 {
     $grid = [];
     $cur = [0, 0];
+    $robo = [0, 0];
+    $santa = true;
 
     deliver($grid, $cur);
+    deliver($grid, $robo);
    
     foreach (str_split($text) as $char) {
         [$x, $y] = get_pos($char);
-        $cur[0] += $x;
-        $cur[1] += $y;
-        deliver($grid, $cur);
+        if ($santa) {
+            $cur[0] += $x;
+            $cur[1] += $y;
+            deliver($grid, $cur);
+        } else {
+            $robo[0] += $x;
+            $robo[1] += $y;
+            deliver($grid, $robo);
+        }
+        $santa = !$santa;
     }
 
     return count($grid);
 }
 
 print count_deliveries(">") . PHP_EOL;
+print count_deliveries("^>") . PHP_EOL;
 print count_deliveries("^>v<") . PHP_EOL;
 print count_deliveries("^v^v^v^v^v"). PHP_EOL;
 print count_deliveries($file) . PHP_EOL;

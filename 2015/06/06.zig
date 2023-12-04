@@ -56,7 +56,7 @@ fn parse_instruction(text: []const u8) Instruction {
     return inst;
 }
 
-fn apply_instruction(grid: *[1000][1000]u1, inst: *Instruction) void {
+fn apply_instruction(grid: *[1000][1000]i32, inst: *Instruction) void {
     var x1: usize = @intCast(inst.from[0]);
     var x2: usize = @intCast(inst.through[0]);
     var y1: usize = @intCast(inst.from[1]);
@@ -80,7 +80,31 @@ fn apply_instruction(grid: *[1000][1000]u1, inst: *Instruction) void {
     }
 }
 
-fn init_lights(grid: *[1000][1000]u1) void {
+fn apply_instruction2(grid: *[1000][1000]i32, inst: *Instruction) void {
+    var x1: usize = @intCast(inst.from[0]);
+    var x2: usize = @intCast(inst.through[0]);
+    var y1: usize = @intCast(inst.from[1]);
+    var y2: usize = @intCast(inst.through[1]);
+
+    for (x1..x2 + 1) |x| {
+        for (y1..y2 + 1) |y| {
+            switch (inst.type) {
+                InstructionType.TOGGLE => {
+                    grid[x][y] += 2;
+                },
+                InstructionType.TURN_ON => {
+                    grid[x][y] += 1;
+                },
+                InstructionType.TURN_OFF => {
+                    grid[x][y] = @max(grid[x][y] - 1, 0);
+                },
+            }
+            // print("{} {}\n", .{ x, y });
+        }
+    }
+}
+
+fn init_lights(grid: *[1000][1000]i32) void {
     for (0..1000) |x| {
         for (0..1000) |y| {
             grid[x][y] = 0;
@@ -88,7 +112,7 @@ fn init_lights(grid: *[1000][1000]u1) void {
     }
 }
 
-fn count_lit(grid: *[1000][1000]u1) i32 {
+fn count_lit(grid: *[1000][1000]i32) i32 {
     var total: i32 = 0;
 
     for (0..1000) |x| {
@@ -102,10 +126,22 @@ fn count_lit(grid: *[1000][1000]u1) i32 {
     return total;
 }
 
+fn calc_brightness(grid: *[1000][1000]i32) i32 {
+    var total: i32 = 0;
+
+    for (0..1000) |x| {
+        for (0..1000) |y| {
+            total += grid[x][y];
+        }
+    }
+
+    return total;
+}
+
 const file = @embedFile("input");
 
 pub fn main() !void {
-    var grid: [1000][1000]u1 = undefined;
+    var grid: [1000][1000]i32 = undefined;
 
     init_lights(&grid);
 
@@ -131,4 +167,16 @@ pub fn main() !void {
     }
 
     print("In the input, {} lights are lit\n", .{count_lit(&grid)});
+
+    init_lights(&grid);
+    it.reset();
+
+    while (it.next()) |line| {
+        if (line.len > 0) {
+            var inst = parse_instruction(line);
+            apply_instruction2(&grid, &inst);
+        }
+    }
+
+    print("The total brightness of the lights is: {}\n", .{calc_brightness(&grid)});
 }

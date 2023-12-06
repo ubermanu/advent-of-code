@@ -110,4 +110,18 @@ pub fn main() !void {
     }
 
     print("Possible ways to beat the record (multiplied): {}\n", .{total});
+
+    var race3 = Race{
+        .time = 71530,
+        .record_distance = 940200,
+    };
+
+    print("Part 2: Possible ways to win {}\n", .{race3.get_winning_press_count()});
+
+    var race4 = Race{
+        .time = 40709879,
+        .record_distance = 215105121471005,
+    };
+
+    print("Part 2: Possible ways to win {}\n", .{race4.get_winning_press_count()});
 }

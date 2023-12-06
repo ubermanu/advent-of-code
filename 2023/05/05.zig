@@ -81,23 +81,158 @@ const Almanac = struct {
         return cursor;
     }
 
-    pub fn get_seed_locations(self: *Almanac) ![]isize {
-        var list = std.ArrayList(isize).init(std.heap.page_allocator);
-        defer list.deinit();
+    pub fn get_lowest_location_number(self: *Almanac) !isize {
+        var lowest: isize = 0;
 
         for (self.seeds) |seed| {
-            try list.append(self.get_seed_location(seed));
+            var location = self.get_seed_location(seed);
+            if (lowest == 0 or location < lowest) {
+                lowest = location;
+            }
+        }
+
+        return lowest;
+    }
+
+    pub fn get_seed_pairs(self: *Almanac) ![][2]isize {
+        var list = std.ArrayList([2]isize).init(std.heap.page_allocator);
+        defer list.deinit();
+
+        for (0..self.seeds.len / 2) |i| {
+            var pair: [2]isize = self.seeds[i * 2 .. i * 2 + 2][0..2].*;
+            try list.append(pair);
         }
 
         return try list.toOwnedSlice();
     }
 
-    pub fn get_lowest_location_number(self: *Almanac) !isize {
-        var locations = try self.get_seed_locations();
-        std.mem.sort(isize, locations, {}, std.sort.asc(isize));
-        return locations[0];
+    // Get the location ranges that match for a given seed pair
+    pub fn get_seed_pair_location_ranges(self: *Almanac, seed_pair: [2]isize) ![][2]isize {
+        var set = std.AutoArrayHashMap([2]isize, [2]isize).init(std.heap.page_allocator);
+        defer set.deinit();
+
+        try set.put(seed_pair, seed_pair);
+
+        for (self.maps()) |map| {
+            var buf = std.ArrayList([2]isize).init(std.heap.page_allocator);
+            defer buf.deinit();
+
+            for (set.values()) |pair| {
+                var ranges = try find_destination_ranges(pair, map);
+                for (ranges) |range| {
+                    try buf.append(range);
+                }
+            }
+
+            // Try list.items = buf owned slice?
+            set.clearAndFree();
+            for (try buf.toOwnedSlice()) |item| {
+                try set.put(item, item);
+            }
+        }
+
+        var list = std.ArrayList([2]isize).init(std.heap.page_allocator);
+        defer list.deinit();
+
+        for (set.values()) |value| {
+            try list.append(value);
+        }
+
+        var results: [][2]isize = try list.toOwnedSlice();
+        std.mem.sort([2]isize, results, {}, lessThanRange);
+
+        return results;
+    }
+
+    // Revert the process, find the lowest location range
+    pub fn get_lowest_location_number2(self: *Almanac) !isize {
+        var lowest: isize = 0;
+
+        for ((try self.get_seed_pairs())) |pair| {
+            var location_ranges = try self.get_seed_pair_location_ranges(pair);
+            // print("\tSeed pair {any} -> location ranges {any}\n", .{ pair, location_ranges });
+
+            for (location_ranges) |range| {
+                if (range[0] < lowest or lowest == 0) {
+                    lowest = range[0];
+                }
+            }
+        }
+
+        return lowest;
     }
 };
+
+fn lessThanRange(_: void, lhs: [2]isize, rhs: [2]isize) bool {
+    return lhs[0] < rhs[0];
+}
+
+fn find_destination_ranges(range: [2]isize, map: [][3]isize) ![][2]isize {
+    var sections = std.AutoArrayHashMap([2]isize, [3]isize).init(std.heap.page_allocator);
+    defer sections.deinit();
+
+    var min = range[0];
+    var max = range[0] + range[1];
+
+    for (map) |row| {
+        // Check intersection
+        var intersection: [2]isize = .{
+            @max(range[0], row[1]),
+            @min(range[0] + range[1], row[1] + row[2]),
+        };
+
+        if (intersection[0] > intersection[1]) {
+            continue;
+        }
+
+        var section: [3]isize = .{
+            row[0] + intersection[0] - row[1], // dest (modified to match offset)
+            intersection[0], // source
+            intersection[1] - intersection[0], // length
+        };
+
+        try sections.put(intersection, section);
+    }
+
+    var list = std.ArrayList([2]isize).init(std.heap.page_allocator);
+    defer list.deinit();
+
+    if (sections.values().len == 0) {
+        // There is no sections, return the whole seed
+        try list.append(range);
+        return try list.toOwnedSlice();
+    }
+
+    var tmp = try sections.clone();
+    var keys = tmp.keys()[0..];
+    std.mem.sort([2]isize, keys, {}, lessThanRange);
+
+    // Fill the gaps
+    var cur = min;
+
+    for (0..keys.len) |k| {
+        var intersection = keys[k];
+
+        // Insert a section from cursor to the next intersection
+        // that correspond to the normal range (no match)
+        if (cur < intersection[0]) {
+            try list.append(.{ cur, intersection[0] - cur });
+        }
+
+        // Add the intersection entry and convert to destination
+        var section = sections.get(intersection).?;
+        try list.append(.{ section[0], section[2] });
+
+        // Jump to the end of the intersection
+        cur = intersection[1];
+    }
+
+    if (cur < max) {
+        try list.append(.{ cur, max - cur });
+    }
+
+    return try list.toOwnedSlice();
+}
 
 fn find_destination(seed: isize, map: [][3]isize) isize {
     for (map) |row| {
@@ -202,4 +337,7 @@ pub fn main() !void {
 
     var alm2 = try parse_almanac(file);
     print("The lowest location number is: {}\n", .{try alm2.get_lowest_location_number()});
+
+    print("The lowest location number (pair) is: {}\n", .{try alm.get_lowest_location_number2()});
+    print("The lowest location number (pair) is: {}\n", .{try alm2.get_lowest_location_number2()});
 }

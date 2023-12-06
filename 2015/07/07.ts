@@ -45,7 +45,6 @@ function parse_instructions(text: string): Instruction[] {
 }
 
 class Gate {
-  active = false
   type: Instruction['type']
   inputs: Array<number | Wire> = []
   output: Wire
@@ -164,3 +163,16 @@ console.log('Input grid status:')
 let circuit2 = connect_wires(parse_instructions(file.toString()));
 run_circuit(circuit2)
 
+const a = circuit2.wires.get('a')!.value!
+
+circuit2.wires.forEach((wire) => {
+  wire.value = undefined
+})
+
+const override = new Gate()
+override.type = 'SET'
+override.inputs.push(a)
+
+circuit2.wires.get('b')!.connect(override)
+
+run_circuit(circuit2)

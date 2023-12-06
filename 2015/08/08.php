@@ -30,3 +30,16 @@ foreach (explode("\n", $file) as $line) {
 }
 
 print "Total of special characters: $total" . PHP_EOL;
+
+
+function get_encoded_length(string $str): int {
+	return strlen(addcslashes($str, "\"'\\")) + 2; // surround with double quotes
+}
+
+$total = 0;
+
+foreach (explode("\n", $file) as $line) {
+	$total += get_encoded_length($line) - get_literal_length($line);
+}
+
+print "Total of special characters: $total" . PHP_EOL;

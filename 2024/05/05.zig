@@ -36,21 +36,7 @@ const Update = []const Page;
 
 const Rule = struct { before: Page, after: Page };
 
-const ParseResult = struct {
-    allocator: std.mem.Allocator,
-    rules: []Rule,
-    updates: []Update,
-
-    pub fn deinit(self: ParseResult) void {
-        for (self.updates) |update| {
-            self.allocator.free(update);
-        }
-        self.allocator.free(self.updates);
-        self.allocator.free(self.rules);
-    }
-};
-
-fn parse(allocator: std.mem.Allocator, input: []const u8) !ParseResult {
+fn parse(allocator: std.mem.Allocator, input: []const u8) !struct { []Rule, []Update } {
     var rules = std.ArrayList(Rule).init(allocator);
     errdefer rules.deinit();
 
@@ -90,14 +76,13 @@ fn parse(allocator: std.mem.Allocator, input: []const u8) !ParseResult {
     }
 
     return .{
-        .allocator = allocator,
-        .rules = try rules.toOwnedSlice(),
-        .updates = try updates.toOwnedSlice(),
+        try rules.toOwnedSlice(),
+        try updates.toOwnedSlice(),
     };
 }
 
-fn is_before(ctx: ParseResult, a: Page, b: Page) bool {
-    for (ctx.rules) |rule| {
+fn isBefore(rules: []Rule, a: Page, b: Page) bool {
+    for (rules) |rule| {
         if (rule.before == b and rule.after == a) {
             return false;
         }
@@ -105,12 +90,12 @@ fn is_before(ctx: ParseResult, a: Page, b: Page) bool {
     return true;
 }
 
-fn is_correct(ctx: ParseResult, update: Update) bool {
+fn isCorrect(rules: []Rule, update: Update) bool {
     for (update, 0..) |page, i| {
         const prev = update[0..i];
 
         for (prev) |sibling| {
-            if (!is_before(ctx, sibling, page)) {
+            if (!isBefore(rules, sibling, page)) {
                 return false;
             }
         }
@@ -118,7 +103,7 @@ fn is_correct(ctx: ParseResult, update: Update) bool {
         const next = update[i .. update.len - 1];
 
         for (next) |sibling| {
-            if (!is_before(ctx, page, sibling)) {
+            if (!isBefore(rules, page, sibling)) {
                 return false;
             }
         }
@@ -128,20 +113,22 @@ fn is_correct(ctx: ParseResult, update: Update) bool {
 }
 
 test "parse doc" {
-    const res = try parse(std.testing.allocator, doc);
-    defer res.deinit();
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
 
-    try std.testing.expectEqual(true, is_correct(res, res.updates[0]));
-    try std.testing.expectEqual(true, is_correct(res, res.updates[1]));
-    try std.testing.expectEqual(true, is_correct(res, res.updates[2]));
-    try std.testing.expectEqual(false, is_correct(res, res.updates[3]));
-    try std.testing.expectEqual(false, is_correct(res, res.updates[4]));
-    try std.testing.expectEqual(false, is_correct(res, res.updates[5]));
+    const rules, const updates = try parse(arena.allocator(), doc);
+
+    try std.testing.expectEqual(true, isCorrect(rules, updates[0]));
+    try std.testing.expectEqual(true, isCorrect(rules, updates[1]));
+    try std.testing.expectEqual(true, isCorrect(rules, updates[2]));
+    try std.testing.expectEqual(false, isCorrect(rules, updates[3]));
+    try std.testing.expectEqual(false, isCorrect(rules, updates[4]));
+    try std.testing.expectEqual(false, isCorrect(rules, updates[5]));
 
     var total: usize = 0;
 
-    for (res.updates) |update| {
-        if (is_correct(res, update)) {
+    for (updates) |update| {
+        if (isCorrect(rules, update)) {
             total += update[update.len / 2];
         }
     }
@@ -150,13 +137,15 @@ test "parse doc" {
 }
 
 test "puzzle input" {
-    const res = try parse(std.testing.allocator, @embedFile("input"));
-    defer res.deinit();
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const rules, const updates = try parse(arena.allocator(), @embedFile("input"));
 
     var total: usize = 0;
 
-    for (res.updates) |update| {
-        if (is_correct(res, update)) {
+    for (updates) |update| {
+        if (isCorrect(rules, update)) {
             total += update[update.len / 2];
         }
     }
